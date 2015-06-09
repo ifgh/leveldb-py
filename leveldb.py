@@ -56,7 +56,8 @@ import weakref
 import threading
 from collections import namedtuple
 
-_ldb = ctypes.CDLL(ctypes.util.find_library('leveldb'))
+_llib = ctypes.util.find_library('leveldb')
+_ldb = ctypes.CDLL(_llib if _llib else 'libleveldb.so')
 
 _ldb.leveldb_filterpolicy_create_bloom.argtypes = [ctypes.c_int]
 _ldb.leveldb_filterpolicy_create_bloom.restype = ctypes.c_void_p
@@ -440,6 +441,9 @@ class DBInterface(object):
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
+    def __convert_unicode(self, data):
+        return data.encode('UTF-8') if isinstance(data, unicode) else data
+
     def close(self):
         if self._allow_close:
             self._impl.close()
@@ -448,6 +452,7 @@ class DBInterface(object):
         return _OpaqueWriteBatch()
 
     def put(self, key, val, sync=None):
+        key = self.__convert_unicode(key)
         if sync is None:
             sync = self._default_sync
         if self._prefix is not None:
@@ -456,6 +461,7 @@ class DBInterface(object):
 
     # pylint: disable=W0212
     def putTo(self, batch, key, val):
+        key = self.__convert_unicode(key)
         if not batch._private:
             raise ValueError("batch not from DBInterface.newBatch")
         if self._prefix is not None:
@@ -464,6 +470,7 @@ class DBInterface(object):
         batch._puts[key] = val
 
     def delete(self, key, sync=None):
+        key = self.__convert_unicode(key)
         if sync is None:
             sync = self._default_sync
         if self._prefix is not None:
@@ -472,6 +479,7 @@ class DBInterface(object):
 
     # pylint: disable=W0212
     def deleteFrom(self, batch, key):
+        key = self.__convert_unicode(key)
         if not batch._private:
             raise ValueError("batch not from DBInterface.newBatch")
         if self._prefix is not None:
@@ -480,6 +488,7 @@ class DBInterface(object):
         batch._deletes.add(key)
 
     def get(self, key, verify_checksums=None, fill_cache=None):
+        key = self.__convert_unicode(key)
         if verify_checksums is None:
             verify_checksums = self._default_verify_checksums
         if fill_cache is None:
@@ -550,6 +559,7 @@ class DBInterface(object):
         return self.has(key)
 
     def has(self, key, verify_checksums=None, fill_cache=None):
+        key = self.__convert_unicode(key)
         return self.get(key, verify_checksums=verify_checksums,
                 fill_cache=fill_cache) is not None
 
